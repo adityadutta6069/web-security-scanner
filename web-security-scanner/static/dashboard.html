@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Web Security Scanner</title>
+<style>
+  :root {
+    --bg: #0d0f14;
+    --surface: #161920;
+    --surface2: #1e2130;
+    --border: #2a2f45;
+    --text: #e2e6f0;
+    --muted: #7a82a0;
+    --pass: #22c87a;
+    --pass-bg: #0d2b1e;
+    --warn: #f5a623;
+    --warn-bg: #2b1e08;
+    --fail: #e84040;
+    --fail-bg: #2b0d0d;
+    --info: #5b9ef5;
+    --info-bg: #0d1e2b;
+    --accent: #5b9ef5;
+    --font: 'Segoe UI', system-ui, sans-serif;
+    --mono: 'Cascadia Code', 'Fira Code', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    min-height: 100vh;
+    font-size: 14px;
+  }
+
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 18px 32px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .logo {
+    width: 36px; height: 36px;
+    background: var(--accent);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+
+  header h1 { font-size: 17px; font-weight: 600; letter-spacing: -0.3px; }
+  header p  { font-size: 12px; color: var(--muted); margin-top: 1px; }
+
+  .container { max-width: 1040px; margin: 0 auto; padding: 32px 24px; }
+
+  /* ─── Input ─── */
+  .scan-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 28px;
+  }
+
+  .scan-box label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 8px; letter-spacing: 0.5px; text-transform: uppercase; }
+
+  .input-row { display: flex; gap: 10px; }
+
+  .input-row input {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 14px;
+    font-family: var(--mono);
+    padding: 0 16px;
+    height: 42px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .input-row input:focus { border-color: var(--accent); }
+
+  .input-row button {
+    background: var(--accent);
+    border: none;
+    border-radius: 8px;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 0 24px;
+    height: 42px;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+    white-space: nowrap;
+  }
+
+  .input-row button:hover { opacity: 0.88; }
+  .input-row button:active { transform: scale(0.97); }
+  .input-row button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* ─── Progress ─── */
+  .progress-wrap {
+    height: 3px; background: var(--border);
+    border-radius: 2px; margin-top: 16px;
+    display: none; overflow: hidden;
+  }
+
+  .progress-bar {
+    height: 100%; background: var(--accent);
+    border-radius: 2px; width: 0;
+    transition: width 0.4s ease;
+  }
+
+  /* ─── Summary cards ─── */
+  .summary { display: none; }
+
+  .meta { font-size: 12px; color: var(--muted); margin-bottom: 16px; font-family: var(--mono); }
+
+  .score-row {
+    display: grid;
+    grid-template-columns: auto 1fr 1fr 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 28px;
+    align-items: stretch;
+  }
+
+  .score-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+  }
+
+  .big-score {
+    grid-column: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-width: 100px;
+    padding: 20px;
+  }
+
+  .big-score .num {
+    font-size: 42px;
+    font-weight: 700;
+    line-height: 1;
+    font-family: var(--mono);
+  }
+
+  .big-score .out-of { font-size: 13px; color: var(--muted); margin-top: 4px; }
+
+  .score-card .label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+
+  .score-card .val {
+    font-size: 26px;
+    font-weight: 600;
+    font-family: var(--mono);
+  }
+
+  .val.pass  { color: var(--pass); }
+  .val.warn  { color: var(--warn); }
+  .val.fail  { color: var(--fail); }
+  .val.info  { color: var(--info); }
+  .val.green { color: var(--pass); }
+  .val.orange{ color: var(--warn); }
+  .val.red   { color: var(--fail); }
+
+  /* ─── Tabs ─── */
+  .tabs {
+    display: flex; gap: 4px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 20px;
+  }
+
+  .tab {
+    padding: 8px 18px;
+    font-size: 13px;
+    cursor: pointer;
+    color: var(--muted);
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    border-radius: 6px 6px 0 0;
+    transition: color 0.15s, background 0.15s;
+  }
+
+  .tab:hover { color: var(--text); background: var(--surface2); }
+
+  .tab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+    font-weight: 500;
+  }
+
+  .tab .cnt {
+    display: inline-block;
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 99px;
+    margin-left: 6px;
+    background: var(--surface2);
+    color: var(--muted);
+  }
+
+  .tab.active .cnt { background: #1e2f4a; color: var(--accent); }
+
+  /* ─── Panels ─── */
+  .panel { display: none; }
+  .panel.active { display: flex; flex-direction: column; gap: 10px; }
+
+  /* ─── Finding card ─── */
+  .finding {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    transition: border-color 0.15s;
+  }
+
+  .finding:hover { border-color: #3a4060; }
+  .finding.status-fail  { border-left: 3px solid var(--fail); }
+  .finding.status-warn  { border-left: 3px solid var(--warn); }
+  .finding.status-pass  { border-left: 3px solid var(--pass); }
+  .finding.status-info  { border-left: 3px solid var(--info); }
+
+  .finding-top {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 16px;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .status-dot {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .dot-pass { background: var(--pass-bg); color: var(--pass); }
+  .dot-fail { background: var(--fail-bg); color: var(--fail); }
+  .dot-warn { background: var(--warn-bg); color: var(--warn); }
+  .dot-info { background: var(--info-bg); color: var(--info); }
+
+  .finding-name { font-size: 14px; font-weight: 500; flex: 1; }
+
+  .sev-badge {
+    font-size: 10px; font-weight: 700;
+    padding: 2px 10px; border-radius: 99px;
+    letter-spacing: 0.5px;
+  }
+
+  .sev-HIGH   { background: var(--fail-bg);  color: var(--fail); }
+  .sev-MEDIUM { background: var(--warn-bg);  color: var(--warn); }
+  .sev-LOW    { background: #1e2020;         color: #aaa; }
+  .sev-INFO   { background: var(--info-bg);  color: var(--info); }
+  .sev-PASS   { background: var(--pass-bg);  color: var(--pass); }
+
+  .chevron { color: var(--muted); font-size: 12px; transition: transform 0.2s; }
+  .finding.open .chevron { transform: rotate(180deg); }
+
+  .finding-body {
+    display: none;
+    padding: 0 16px 16px 56px;
+    border-top: 1px solid var(--border);
+  }
+
+  .finding.open .finding-body { display: block; }
+
+  .detail-text {
+    font-size: 13px; color: var(--muted);
+    line-height: 1.7; margin-top: 12px;
+  }
+
+  .remediation {
+    margin-top: 10px;
+    padding: 10px 14px;
+    background: var(--bg);
+    border-radius: 6px;
+    border-left: 2px solid var(--accent);
+    font-size: 12px;
+    color: var(--text);
+    line-height: 1.6;
+  }
+
+  .remediation strong { color: var(--accent); font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; display: block; margin-bottom: 3px; }
+
+  /* ─── Empty ─── */
+  .empty {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--muted);
+  }
+
+  .empty .icon { font-size: 40px; margin-bottom: 12px; }
+  .empty p { font-size: 14px; }
+
+  /* ─── Filter bar ─── */
+  .filter-bar {
+    display: flex; gap: 8px; margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+
+  .filter-btn {
+    font-size: 12px; padding: 4px 14px;
+    border-radius: 99px; cursor: pointer;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    transition: all 0.15s;
+  }
+
+  .filter-btn:hover { border-color: #4a5070; color: var(--text); }
+  .filter-btn.active { background: var(--surface2); color: var(--text); border-color: #5060a0; }
+
+  /* ─── Responsive ─── */
+  @media (max-width: 640px) {
+    .score-row { grid-template-columns: 1fr 1fr; }
+    .big-score { grid-column: span 2; flex-direction: row; gap: 16px; }
+    header { padding: 14px 16px; }
+    .container { padding: 20px 14px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🛡</div>
+  <div>
+    <h1>Web Security Scanner</h1>
+    <p>Passive reconnaissance &amp; header analysis</p>
+  </div>
+</header>
+
+<div class="container">
+
+  <div class="scan-box">
+    <label>Target URL</label>
+    <div class="input-row">
+      <input type="text" id="urlInput" placeholder="https://example.com" value="https://example.com" />
+      <button id="scanBtn" onclick="startScan()">▶ Scan</button>
+    </div>
+    <div class="progress-wrap" id="progressWrap">
+      <div class="progress-bar" id="progressBar"></div>
+    </div>
+  </div>
+
+  <div class="empty" id="emptyState">
+    <div class="icon">🔍</div>
+    <p>Enter a URL and click Scan to begin your security assessment</p>
+  </div>
+
+  <div class="summary" id="summarySection">
+    <div class="meta" id="metaLine"></div>
+
+    <div class="score-row">
+      <div class="score-card big-score">
+        <div class="num" id="scoreNum">—</div>
+        <div class="out-of">/ 100</div>
+      </div>
+      <div class="score-card">
+        <div class="label">Passed</div>
+        <div class="val pass" id="mPass">0</div>
+      </div>
+      <div class="score-card">
+        <div class="label">Warnings</div>
+        <div class="val warn" id="mWarn">0</div>
+      </div>
+      <div class="score-card">
+        <div class="label">Critical</div>
+        <div class="val fail" id="mFail">0</div>
+      </div>
+      <div class="score-card">
+        <div class="label">Info</div>
+        <div class="val info" id="mInfo">0</div>
+      </div>
+    </div>
+
+    <div class="tabs" id="tabBar">
+      <div class="tab active" data-tab="headers" onclick="switchTab('headers')">Headers <span class="cnt" id="cnt-headers">0</span></div>
+      <div class="tab" data-tab="ssl"     onclick="switchTab('ssl')">SSL / TLS <span class="cnt" id="cnt-ssl">0</span></div>
+      <div class="tab" data-tab="xss"     onclick="switchTab('xss')">XSS &amp; Injection <span class="cnt" id="cnt-xss">0</span></div>
+      <div class="tab" data-tab="info"    onclick="switchTab('info')">Info Disclosure <span class="cnt" id="cnt-info">0</span></div>
+    </div>
+
+    <div class="filter-bar">
+      <button class="filter-btn active" onclick="setFilter('all', this)">All</button>
+      <button class="filter-btn" onclick="setFilter('fail', this)">Critical</button>
+      <button class="filter-btn" onclick="setFilter('warn', this)">Warnings</button>
+      <button class="filter-btn" onclick="setFilter('pass', this)">Passed</button>
+      <button class="filter-btn" onclick="setFilter('info', this)">Info</button>
+    </div>
+
+    <div class="panel active" id="panel-headers"></div>
+    <div class="panel" id="panel-ssl"></div>
+    <div class="panel" id="panel-xss"></div>
+    <div class="panel" id="panel-info"></div>
+  </div>
+
+</div>
+
+<script>
+let scanData = null;
+let activeTab = 'headers';
+let activeFilter = 'all';
+
+const statusIcon = { pass:'✓', fail:'✗', warn:'!', info:'i' };
+
+function switchTab(name) {
+  activeTab = name;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  if (scanData) renderPanel(name, scanData.checks[name] || []);
+}
+
+function setFilter(filter, btn) {
+  activeFilter = filter;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (scanData) renderPanel(activeTab, scanData.checks[activeTab] || []);
+}
+
+function renderPanel(panelId, findings) {
+  const filtered = activeFilter === 'all' ? findings : findings.filter(f => f.status === activeFilter);
+  const panel = document.getElementById('panel-' + panelId);
+  if (!filtered.length) {
+    panel.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted);font-size:13px;">No findings match this filter.</div>';
+    return;
+  }
+  panel.innerHTML = filtered.map((f, i) => `
+    <div class="finding status-${f.status}" id="f-${panelId}-${i}" onclick="toggleFinding('f-${panelId}-${i}')">
+      <div class="finding-top">
+        <div class="status-dot dot-${f.status}">${statusIcon[f.status] || '?'}</div>
+        <span class="finding-name">${f.name}</span>
+        <span class="sev-badge sev-${f.severity}">${f.severity}</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="finding-body">
+        <div class="detail-text">${f.detail}</div>
+        ${f.remediation ? `<div class="remediation"><strong>Remediation</strong>${f.remediation}</div>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+function toggleFinding(id) {
+  document.getElementById(id).classList.toggle('open');
+}
+
+async function startScan() {
+  const url = document.getElementById('urlInput').value.trim();
+  if (!url) return;
+
+  const btn = document.getElementById('scanBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Scanning...';
+
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('summarySection').style.display = 'none';
+
+  const wrap = document.getElementById('progressWrap');
+  const bar  = document.getElementById('progressBar');
+  wrap.style.display = 'block';
+  bar.style.width = '0%';
+
+  let prog = 0;
+  const ticker = setInterval(() => {
+    prog = Math.min(prog + Math.random() * 15, 88);
+    bar.style.width = prog + '%';
+  }, 300);
+
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        messages: [{
+          role: 'user',
+          content: `You are an expert web security scanner AI. Analyze this URL: ${url}
+
+Return ONLY a valid JSON object with NO markdown or code fences, structured exactly as:
+{
+  "summary": {"score": 0-100, "passed": N, "warnings": N, "failed": N, "info": N},
+  "checks": {
+    "headers": [{"name":"...","status":"pass|fail|warn|info","severity":"HIGH|MEDIUM|LOW|INFO|PASS","detail":"...","remediation":"...or null"}],
+    "ssl": [...],
+    "xss": [...],
+    "info": [...]
+  }
+}
+
+headers: Check CSP, X-Frame-Options, X-Content-Type-Options, HSTS, Referrer-Policy, Permissions-Policy, CORS, X-XSS-Protection (8 checks)
+ssl: HTTPS usage, certificate validity, TLS version, mixed content, HTTP redirect, HSTS (6 checks)
+xss: Reflected params, inline scripts, cookie flags (HttpOnly/Secure/SameSite), CSRF tokens in forms, eval() usage, DOM XSS risk (6 checks)
+info: Server header, X-Powered-By, HTML version comments, robots.txt, directory listing, verbose error pages (6 checks)
+
+Be realistic and educational based on the domain. Score: start at 100, subtract 12 per fail, 5 per warn.`
+        }]
+      })
+    });
+
+    const data = await resp.json();
+    const raw = data.content.map(b => b.text || '').join('');
+    const clean = raw.replace(/```json|```/g, '').trim();
+    const result = JSON.parse(clean);
+    scanData = result;
+    scanData.target = url;
+
+    clearInterval(ticker);
+    bar.style.width = '100%';
+    setTimeout(() => { wrap.style.display = 'none'; }, 500);
+
+    // Populate summary
+    const s = result.summary;
+    const score = s.score;
+    document.getElementById('scoreNum').textContent = score;
+    document.getElementById('scoreNum').style.color = score >= 75 ? 'var(--pass)' : score >= 50 ? 'var(--warn)' : 'var(--fail)';
+    document.getElementById('mPass').textContent = s.passed;
+    document.getElementById('mWarn').textContent = s.warnings;
+    document.getElementById('mFail').textContent = s.failed;
+    document.getElementById('mInfo').textContent = s.info;
+    document.getElementById('metaLine').textContent = `Scanned: ${url} — ${new Date().toLocaleString()}`;
+
+    // Tab counts
+    ['headers','ssl','xss','info'].forEach(k => {
+      document.getElementById('cnt-' + k).textContent = (result.checks[k] || []).length;
+    });
+
+    document.getElementById('summarySection').style.display = 'block';
+    activeTab = 'headers';
+    activeFilter = 'all';
+    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === 'headers'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.getElementById('panel-headers').classList.add('active');
+    document.querySelectorAll('.filter-btn').forEach((b,i) => b.classList.toggle('active', i===0));
+
+    ['headers','ssl','xss','info'].forEach(k => renderPanel(k, result.checks[k] || []));
+
+  } catch(e) {
+    clearInterval(ticker);
+    wrap.style.display = 'none';
+    document.getElementById('emptyState').style.display = 'block';
+    document.getElementById('emptyState').querySelector('p').textContent = 'Scan failed: ' + e.message;
+  }
+
+  btn.disabled = false;
+  btn.textContent = '▶ Scan';
+}
+</script>
+</body>
+</html>
